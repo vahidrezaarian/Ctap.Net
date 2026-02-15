@@ -2,23 +2,23 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net472;net8.0;net10.0</TargetFrameworks>
     <OutputType>Library</OutputType>
-    <RootNamespace>CtapSharp</RootNamespace>
-    <AssemblyName>CtapSharp</AssemblyName>
+    <RootNamespace>Ctap.Net</RootNamespace>
+    <AssemblyName>Ctap.Net</AssemblyName>
     
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>CtapSharp</PackageId>
+    <PackageId>Ctap.Net</PackageId>
     <Version>1.0.0</Version>
     <Authors>Vahidreza Arian</Authors>
     <Description>CTAP (Client to Authenticator Protocol) library for C# - supports USB/NFC FIDO security keys</Description>
-    <PackageTags>fido;ctap;webauthn;securitykey</PackageTags>
+    <PackageTags>fido;ctap;webauthn;securitykey;passkey;passkeys</PackageTags>
     <Title>CTAP Library for C#</Title>
     <PackageProjectUrl></PackageProjectUrl>
     <PackageIcon></PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <RepositoryUrl>https://github.com/vahidrezaarian/CtapSharp</RepositoryUrl>
+    <RepositoryUrl>https://github.com/vahidrezaarian/Ctap.Net</RepositoryUrl>
     <PackageReleaseNotes>Initial release of a CTAP library which provides all CTAP 2.0 supported functions.
 
-The BLE transport  and CTAP 2.1 will be release in another update later.</PackageReleaseNotes>
+The BLE transport and CTAP 2.1 will be release in another update later.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
   </PropertyGroup>
