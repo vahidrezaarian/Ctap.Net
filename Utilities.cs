@@ -1,4 +1,10 @@
-﻿using PeterO.Cbor;
+﻿// CtapSharp
+// Copyright (c) 2026 Vahidreza Arian
+// 
+// This file is part of CtapSharp and is licensed under the MIT license.
+// See LICENSE file in the project root for full license information.
+
+using PeterO.Cbor;
 using System;
 using System.IO;
 using System.Security.Cryptography;
@@ -239,7 +245,7 @@ namespace CtapSharp
 
         public static byte[] Decrypt(byte[] cipherText, byte[] key, byte[] iv, PaddingMode padding = PaddingMode.None)
         {
-            using (AesManaged aes = new AesManaged())
+            using (Aes aes = Aes.Create())
             {
                 aes.KeySize = 256;
                 aes.BlockSize = 128;
@@ -262,7 +268,7 @@ namespace CtapSharp
         public static byte[] Encrypt(byte[] data, byte[] key, byte[] iv, PaddingMode padding = PaddingMode.None)
         {
             byte[] encrypted;
-            using (AesManaged aes = new AesManaged())
+            using (Aes aes = Aes.Create())
             {
                 aes.KeySize = 256;
                 aes.BlockSize = 128;

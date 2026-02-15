@@ -1,4 +1,10 @@
-﻿using HidSharp;
+﻿// CtapSharp
+// Copyright (c) 2026 Vahidreza Arian
+// 
+// This file is part of CtapSharp and is licensed under the MIT license.
+// See LICENSE file in the project root for full license information.
+
+using HidSharp;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -219,13 +225,13 @@ namespace CtapSharp.Transports.Usb
                 }
                 catch (ProcessAbortedException ex)
                 {
-                    throw ex;
+                    throw new ProcessAbortedException(ex.Message);
                 }
                 catch (Exception ex)
                 {
                     if (recursive)
                     {
-                        throw ex;
+                        throw new Exception(ex.Message);
                     }
                     else
                     {
@@ -263,11 +269,11 @@ namespace CtapSharp.Transports.Usb
             }
             catch (ProcessAbortedException ex)
             {
-                throw ex;
+                throw new ProcessAbortedException(ex.Message);
             }
             catch (Exception ex)
             {
-                throw new Exception($"Failed to read HID device. Error: {ex.Message}");
+                throw new Exception($"Failed to read the HID device. Error: {ex.Message}");
             }
         }
 

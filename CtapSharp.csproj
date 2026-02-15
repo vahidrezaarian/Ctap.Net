@@ -1,70 +1,52 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{196EA2CC-2E2D-4173-BEC9-E9CBBE0C43EE}</ProjectGuid>
+    <TargetFrameworks>netstandard2.0;net472;net8.0;net10.0</TargetFrameworks>
     <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>CtapSharp</RootNamespace>
     <AssemblyName>CtapSharp</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>CtapSharp</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Vahidreza Arian</Authors>
+    <Description>CTAP (Client to Authenticator Protocol) library for C# - supports USB/NFC FIDO security keys</Description>
+    <PackageTags>fido;ctap;webauthn;securitykey</PackageTags>
+    <Title>CTAP Library for C#</Title>
+    <PackageProjectUrl></PackageProjectUrl>
+    <PackageIcon></PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/vahidrezaarian/CtapSharp</RepositoryUrl>
+    <PackageReleaseNotes>Initial release of a CTAP library which provides all CTAP 2.0 supported functions.
+
+The BLE transport  and CTAP 2.1 will be release in another update later.</PackageReleaseNotes>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
+    <None Remove="README.md" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Ctap.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Transports\Nfc\CcidNfcSecurityKeyDevice.cs" />
-    <Compile Include="Transports\Nfc\PcscNfcSecurityKeyDevice.cs" />
-    <Compile Include="Transports\Usb\UsbSecurityKeyDevice.cs" />
-    <Compile Include="Utilities.cs" />
+    <Content Include="README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </Content>
   </ItemGroup>
+
   <ItemGroup>
-    <Compile Include="Transports\FidoSecurityKeyDevice.cs" />
+    <PackageReference Include="HidSharp" Version="2.6.4" />
+    <PackageReference Include="LibUsbDotNet" Version="2.2.75" />
+    <PackageReference Include="PCSC.Iso7816" Version="7.0.1" />
+    <PackageReference Include="PeterO.Cbor" Version="4.5.5" />
   </ItemGroup>
-  <ItemGroup />
+
   <ItemGroup>
-    <PackageReference Include="HidSharp">
-      <Version>2.6.4</Version>
-    </PackageReference>
-    <PackageReference Include="LibUsbDotNet">
-      <Version>2.2.75</Version>
-    </PackageReference>
-    <PackageReference Include="PCSC.Iso7816">
-      <Version>7.0.1</Version>
-    </PackageReference>
-    <PackageReference Include="PeterO.Cbor">
-      <Version>4.5.5</Version>
-    </PackageReference>
+    <None Update="Assets\Icon.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Update="LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

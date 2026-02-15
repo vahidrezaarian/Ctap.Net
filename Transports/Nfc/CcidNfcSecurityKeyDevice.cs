@@ -1,4 +1,10 @@
-﻿using LibUsbDotNet;
+﻿// CtapSharp
+// Copyright (c) 2026 Vahidreza Arian
+// 
+// This file is part of CtapSharp and is licensed under the MIT license.
+// See LICENSE file in the project root for full license information.
+
+using LibUsbDotNet;
 using LibUsbDotNet.Main;
 using System;
 using System.Collections.Generic;

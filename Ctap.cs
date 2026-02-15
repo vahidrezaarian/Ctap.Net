@@ -1,4 +1,10 @@
-﻿using CtapSharp.Transports;
+﻿// CtapSharp
+// Copyright (c) 2026 Vahidreza Arian
+// 
+// This file is part of CtapSharp and is licensed under the MIT license.
+// See LICENSE file in the project root for full license information.
+
+using CtapSharp.Transports;
 using PeterO.Cbor;
 using System;
 using System.Collections.Generic;
