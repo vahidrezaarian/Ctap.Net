@@ -1,15 +1,15 @@
-﻿// CtapSharp
+﻿// Ctap.Net
 // Copyright (c) 2026 Vahidreza Arian
 // 
-// This file is part of CtapSharp and is licensed under the MIT license.
+// This file is part of Ctap.Net and is licensed under the MIT license.
 // See LICENSE file in the project root for full license information.
 
-using CtapSharp.Transports;
+using Ctap.Net.Transports;
 using PeterO.Cbor;
 using System;
 using System.Collections.Generic;
 
-namespace CtapSharp
+namespace Ctap.Net
 {
     public static partial class Extensions
     {

@@ -1,16 +1,16 @@
-﻿// CtapSharp
+﻿// Ctap.Net
 // Copyright (c) 2026 Vahidreza Arian
 // 
-// This file is part of CtapSharp and is licensed under the MIT license.
+// This file is part of Ctap.Net and is licensed under the MIT license.
 // See LICENSE file in the project root for full license information.
 
-using CtapSharp.Transports.Nfc;
-using CtapSharp.Transports.Usb;
+using Ctap.Net.Transports.Nfc;
+using Ctap.Net.Transports.Usb;
 using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace CtapSharp.Transports
+namespace Ctap.Net.Transports
 {
     public enum Transports
     {
