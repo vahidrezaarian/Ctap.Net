@@ -8,7 +8,6 @@ using CtapDotNet.Transports.Nfc;
 using CtapDotNet.Transports.Usb;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 
 namespace CtapDotNet.Transports
 {
@@ -22,10 +21,12 @@ namespace CtapDotNet.Transports
     public abstract class FidoSecurityKeyDevice: IDisposable
     {
         public DeviceInfo DeviceInfo;
+        public object Device;
+        public abstract EventHandler<EventArgs> UserActionRequiredEventHandler { get; set; }
 
         public abstract void Dispose();
 
-        public abstract byte[] Send(byte[] data, CancellationTokenSource cancellationTokenSource = null, int timeout = -1);
+        public abstract byte[] Send(byte[] data);
 	}
 
     public static class FidoSecurityKeyDevices
@@ -36,17 +37,17 @@ namespace CtapDotNet.Transports
             {
                 foreach (var device in UsbFidoHidDevice.AllDevices)
                 {
-                    yield return new UsbSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device.GetProductName(), device.DevicePath, Transports.USB) };
+                    yield return new UsbSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device.GetProductName(), device.DevicePath, Transports.USB), Device = device };
                 }
 
                 foreach (var device in PcscSecurityKeyReaderDevice.AllDevices)
                 {
-                    yield return new PcscNfcSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device, device, Transports.NFC) };   
+                    yield return new PcscNfcSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device, device, Transports.NFC), Device = device };   
                 }
 
                 foreach (var device in CcidSecurityKeyReaderDevice.AllDevices)
                 {
-                    yield return new CcidNfcSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device.Name, device.DevicePath, Transports.NFC) };
+                    yield return new CcidNfcSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device.Name, device.DevicePath, Transports.NFC), Device = device };
                 }
 			}
         }
@@ -54,9 +55,9 @@ namespace CtapDotNet.Transports
 
     public class DeviceInfo
     {
-        public string Name;
-        public string Path;
-        public Transports Transport;
+        public readonly string Name;
+        public readonly string Path;
+        public readonly Transports Transport;
 
         public DeviceInfo(string name, string path, Transports transport)
         {

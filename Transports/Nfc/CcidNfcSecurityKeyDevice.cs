@@ -13,9 +13,23 @@ using System.Threading;
 
 namespace CtapDotNet.Transports.Nfc
 {
-    internal class CcidNfcSecurityKeyDevice : FidoSecurityKeyDevice
+    public class CcidNfcSecurityKeyDevice : FidoSecurityKeyDevice
     {
         private readonly CcidSecurityKeyReaderDevice _readerDevice;
+        private EventHandler<EventArgs> _userActionRequiredEventHandler;
+
+        public override EventHandler<EventArgs> UserActionRequiredEventHandler
+        {
+            get
+            {
+                return _userActionRequiredEventHandler;
+            }
+
+            set
+            {
+                _userActionRequiredEventHandler = value;
+            }
+        }
 
         public CcidNfcSecurityKeyDevice(UsbRegistry device)
         {
@@ -27,13 +41,13 @@ namespace CtapDotNet.Transports.Nfc
             _readerDevice.Dispose();
         }
 
-        public override byte[] Send(byte[] data, CancellationTokenSource cancellationTokenSource = null, int timeout = -1)
+        public override byte[] Send(byte[] data)
         {
             return _readerDevice.Send(data);
         }
     }
 
-    public static class UsbDeviceExtensions
+    internal static class UsbDeviceExtensions
     {
         public static bool IsCcidDevice(this UsbDevice usbDevice)
         {
@@ -372,7 +386,7 @@ namespace CtapDotNet.Transports.Nfc
                 throw new Exception($"Did not receive expected CCID response (type=0x{(byte)expectedReaderResponseType:X2}, seq={expectedSeq}).");
 
             // Phase 2: handle Time Extension (cmdStatus==2)
-            for (int ext = 0; ext < 30; ext++)
+            for (int ext = 0; ext < 200; ext++)
             {
                 if (firstReadBuffer.Length >= 10)
                 {

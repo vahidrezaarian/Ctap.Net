@@ -13,9 +13,23 @@ using System.Threading;
 
 namespace CtapDotNet.Transports.Nfc
 {
-    internal class PcscNfcSecurityKeyDevice : FidoSecurityKeyDevice
+    public class PcscNfcSecurityKeyDevice : FidoSecurityKeyDevice
     {
         private readonly PcscSecurityKeyReaderDevice _readerDevice;
+        private EventHandler<EventArgs> _userActionRequiredEventHandler;
+
+        public override EventHandler<EventArgs> UserActionRequiredEventHandler
+        {
+            get
+            {
+                return _userActionRequiredEventHandler;
+            }
+
+            set
+            {
+                _userActionRequiredEventHandler = value;
+            }
+        }
 
         public PcscNfcSecurityKeyDevice(string readerName)
         {
@@ -27,7 +41,7 @@ namespace CtapDotNet.Transports.Nfc
             _readerDevice.Dispose();
         }
 
-        public override byte[] Send(byte[] data, CancellationTokenSource cancellationTokenSource = null, int timeout = -1)
+        public override byte[] Send(byte[] data)
         {
             return _readerDevice.Send(data);
         }

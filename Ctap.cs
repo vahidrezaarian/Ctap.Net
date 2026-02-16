@@ -23,7 +23,7 @@ namespace CtapDotNet
     {
         private readonly FidoSecurityKeyDevice _device;
 
-        public Ctap (FidoSecurityKeyDevice device)
+        public Ctap(FidoSecurityKeyDevice device)
         {
             _device = device;
         }
@@ -71,6 +71,35 @@ namespace CtapDotNet
         public byte[] GetPinToken(byte[] pinHashEnc, byte[] platformKeyAgreement, int pinProtocol)
         {
             return GetPinToken(pinHashEnc, platformKeyAgreement.ToCborObject(), pinProtocol);
+        }
+
+        public void SetPin(byte[] newPinEnc, CBORObject platformKeyAgreement, byte[] pinAuth, int pinProtocol)
+        {
+            var packet = CreateCborPacket(CtapCborSubCommands.ClientPin, CBORObject.FromObject(new Dictionary<int, object>
+            {
+                { 1, pinProtocol },
+                { 2, 3 },
+                { 3, platformKeyAgreement},
+                { 4, pinAuth},
+                { 5, newPinEnc},
+            }));
+            var response = _device.Send(packet);
+            CheckResponse(CtapCborSubCommands.ClientPin, response);
+        }
+
+        public void ChangePin(byte[] pinHashEnc, byte[] newPinEnc, CBORObject platformKeyAgreement, byte[] pinAuth, int pinProtocol)
+        {
+            var packet = CreateCborPacket(CtapCborSubCommands.ClientPin, CBORObject.FromObject(new Dictionary<int, object>
+            {
+                { 1, pinProtocol },
+                { 2, 4 },
+                { 3, platformKeyAgreement},
+                { 4, pinAuth},
+                { 5, newPinEnc},
+                { 6, pinHashEnc},
+            }));
+            var response = _device.Send(packet);
+            CheckResponse(CtapCborSubCommands.ClientPin, response);
         }
 
         public byte[] GetKeyAgreement()
@@ -183,21 +212,20 @@ namespace CtapDotNet
             return MakeCredential(request.ToCborObject());
         }
 
-        public byte[] Reset()
+        public void Reset()
         {
             var response = _device.Send(CreateCborPacket(CtapCborSubCommands.Reset));
             CheckResponse(CtapCborSubCommands.Reset, response);
-            return ExtractDataFromResponse(response);
         }
 
-        private byte[] ExtractDataFromResponse(byte[] response)
+        private static byte[] ExtractDataFromResponse(byte[] response)
         {
             var data = new byte[response.Length - 1];
             Array.Copy(response, 1, data, 0, data.Length);
             return data;
         }
 
-        private byte[] CreateCborPacket(CtapCborSubCommands subCommand, CBORObject cborObject = null)
+        private static byte[] CreateCborPacket(CtapCborSubCommands subCommand, CBORObject cborObject = null)
         {
             if (cborObject == null)
             {

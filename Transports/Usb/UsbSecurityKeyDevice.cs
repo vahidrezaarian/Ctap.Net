@@ -11,10 +11,32 @@ using System.Threading;
 
 namespace CtapDotNet.Transports.Usb
 {
-    internal class UsbSecurityKeyDevice: FidoSecurityKeyDevice
+    public class UsbSecurityKeyDevice: FidoSecurityKeyDevice
     {
         private readonly byte[] _channelId;
         private readonly UsbFidoHidDevice _device;
+        private EventHandler<EventArgs> _userActionRequiredEventHandler;
+
+        public override EventHandler<EventArgs> UserActionRequiredEventHandler
+        {
+            get
+            {
+                return _userActionRequiredEventHandler;
+            }
+
+            set
+            {
+                _userActionRequiredEventHandler = value;
+            }
+        }
+
+        public bool WaitingForUserAction
+        {
+            get
+            {
+                return _device.WaitingForUserAction;
+            }
+        }
 
         public UsbSecurityKeyDevice(HidDevice device)
         {
@@ -28,7 +50,7 @@ namespace CtapDotNet.Transports.Usb
             _device.Close();
         }
 
-        public override byte[] Send(byte[] data, CancellationTokenSource cancellationTokenSource = null, int timeout = -1)
+        public override byte[] Send(byte[] data)
         {
             var requestPacket = new byte[data.Length + 8];
             Array.Copy(_channelId, 0, requestPacket, 1, 4);
@@ -37,7 +59,7 @@ namespace CtapDotNet.Transports.Usb
             requestPacket[7] = (byte)(data.Length & 0xff);
             Array.Copy(data, 0, requestPacket, 8, data.Length);
             _device.Write(requestPacket);
-            var (Data, Length) = _device.Read(cancellationTokenSource);
+            var (Data, Length) = _device.Read(_userActionRequiredEventHandler);
             byte[] response = new byte[Length];
             Array.Copy(Data, 0, response, 0, Length);
             return response;
@@ -50,7 +72,7 @@ namespace CtapDotNet.Transports.Usb
             Array.Copy(nonce, 0, initPackt, 8, 8);
 
             _device.Write(initPackt);
-            var initResponse = _device.Read(null, timeout: 3000);
+            var initResponse = _device.Read(null);
             for (int i = 0; i < nonce.Length; i++)
             {
                 if (nonce[i] != initResponse.Data[i])
@@ -69,6 +91,8 @@ namespace CtapDotNet.Transports.Usb
     {
         readonly HidDevice _device;
         HidStream _stream;
+
+        public bool WaitingForUserAction { get; private set; }
 
         public UsbFidoHidDevice(HidDevice device)
         {
@@ -191,7 +215,7 @@ namespace CtapDotNet.Transports.Usb
             }
         }
 
-        public (byte[] Data, int Length) Read(CancellationTokenSource cancellationToken, int timeout = 10000, bool recursive = false)
+        public (byte[] Data, int Length) Read(EventHandler<EventArgs> userActionRequiredEventHandler, bool recursive = false)
         {
             try
             {
@@ -207,21 +231,32 @@ namespace CtapDotNet.Transports.Usb
 
                 byte[] result;
                 var inputReportBuffer = new byte[65];
-                _stream.ReadTimeout = timeout;
                 int bytesRead;
 
                 try
                 {
+                    bool userActionRequiredEventInvoked = false;
                     do
                     {
                         bytesRead = _stream.Read(inputReportBuffer, 0, inputReportBuffer.Length);
-                        if (cancellationToken != null && cancellationToken.IsCancellationRequested)
+
+                        if (inputReportBuffer[5] == 0xbb)
                         {
-                            Close();
-                            throw new ProcessAbortedException("Process cancelled!");
+                            WaitingForUserAction = inputReportBuffer[8] == 2;
+
+                            if (WaitingForUserAction && !userActionRequiredEventInvoked)
+                            {
+                                userActionRequiredEventInvoked = true;
+                                userActionRequiredEventHandler?.Invoke(this, new EventArgs());
+                            }
+                        }
+                        else
+                        {
+                            WaitingForUserAction = false;
+                            break;
                         }
                     }
-                    while (inputReportBuffer[5] == 0xbb);
+                    while (true);
                 }
                 catch (ProcessAbortedException ex)
                 {
@@ -237,7 +272,7 @@ namespace CtapDotNet.Transports.Usb
                     {
                         _stream.Close();
                         _stream.Dispose();
-                        return Read(cancellationToken, timeout, true);
+                        return Read(userActionRequiredEventHandler, true);
                     }
                 }
 
