@@ -16,7 +16,7 @@
     <PackageIcon></PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/vahidrezaarian/Ctap.Net</RepositoryUrl>
-    <PackageReleaseNotes>Bug fixes. Added user action event handler.</PackageReleaseNotes>
+    <PackageReleaseNotes>Bug fixes. Implemented operation canceled exception handling.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
   </PropertyGroup>
