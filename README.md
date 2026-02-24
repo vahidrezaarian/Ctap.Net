@@ -28,6 +28,8 @@ foreach (var device in FidoSecurityKeyDevices.AllDevices)
     device.UserActionRequiredEventHandler += (sender, args) =>
     {
         // This event is raised when the device requires user interaction, such as touching the security key. You can handle this event to prompt the user to interact with the device.
+
+        // Call args.Cancel() in order to cancel the operation
     };
 
     using (var ctap = new Ctap(device)) // Make sure the ctap object is disposed when finished
