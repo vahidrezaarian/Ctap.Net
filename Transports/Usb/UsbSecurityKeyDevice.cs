@@ -41,13 +41,12 @@ namespace CtapDotNet.Transports.Usb
         public UsbSecurityKeyDevice(HidDevice device)
         {
             _device = new UsbFidoHidDevice(device);
-            _device.Open();
             _channelId = GetChannelId();
         }
 
         public override void Dispose()
         {
-            _device.Close();
+            
         }
 
         public override byte[] Send(byte[] data)
@@ -60,58 +59,86 @@ namespace CtapDotNet.Transports.Usb
                 requestPacket[6] = (byte)(data.Length >> 8);
                 requestPacket[7] = (byte)(data.Length & 0xff);
                 Array.Copy(data, 0, requestPacket, 8, data.Length);
+                _device.Open();
                 _device.Write(requestPacket);
                 var (Data, Length) = _device.Read(_userActionRequiredEventHandler);
+                _device.Close();
                 byte[] response = new byte[Length];
                 Array.Copy(Data, 0, response, 0, Length);
                 return response;
             }
-            catch (OperationCanceledException ex)
+            catch (OperationCanceledException)
             {
+                _device.Close();
                 try
                 {
                     Cancel();
                 }
                 catch { }
-                throw new OperationCanceledException(ex.Message);
+                throw;
+            }
+            catch
+            {
+                _device.Close();
+                throw;
             }
         }
 
         private byte[] GetChannelId()
         {
-            byte[] initPackt = { 0x00, 0xff, 0xff, 0xff, 0xff, 0x86, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            var nonce = Utilities.GetRandomBytes(8);
-            Array.Copy(nonce, 0, initPackt, 8, 8);
-
-            _device.Write(initPackt);
-            var initResponse = _device.Read(null);
-            for (int i = 0; i < nonce.Length; i++)
+            try
             {
-                if (nonce[i] != initResponse.Data[i])
-                {
-                    throw new Exception("Failed to initialize the USB security key. Error: Invalid init response!");
-                }
-            }
+                byte[] initPackt = { 0x00, 0xff, 0xff, 0xff, 0xff, 0x86, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+                var nonce = Utilities.GetRandomBytes(8);
+                Array.Copy(nonce, 0, initPackt, 8, 8);
 
-            var channelId = new byte[4];
-            Array.Copy(initResponse.Data, 8, channelId, 0, 4);
-            return channelId;
+                _device.Open();
+                _device.Write(initPackt);
+                var initResponse = _device.Read(null);
+                _device.Close();
+                for (int i = 0; i < nonce.Length; i++)
+                {
+                    if (nonce[i] != initResponse.Data[i])
+                    {
+                        throw new Exception("Failed to initialize the USB security key. Error: Invalid init response!");
+                    }
+                }
+
+                var channelId = new byte[4];
+                Array.Copy(initResponse.Data, 8, channelId, 0, 4);
+                return channelId;
+            }
+            catch
+            {
+                _device.Close();
+                throw;
+            }
         }
 
         private void Cancel()
         {
-            // We need to send the cancel only if we are receiving keepalive from the security key
-            if (_channelId is null)
+            try
             {
-                return;
-            }
+                // We need to send the cancel only if we are receiving keepalive from the security key
+                if (_channelId is null)
+                {
+                    return;
+                }
 
-            var cancelPacket = new byte[9];
-            Array.Copy(_channelId, 0, cancelPacket, 1, 4);
-            byte[] cancelRequestBytes = { 0x91, 0x00, 0x00, 0x00 };
-            Array.Copy(cancelRequestBytes, 0, cancelPacket, 5, cancelRequestBytes.Length);
-            _device.Write(cancelPacket);
-            _device.Read(null);
+                var cancelPacket = new byte[9];
+                Array.Copy(_channelId, 0, cancelPacket, 1, 4);
+                byte[] cancelRequestBytes = { 0x91, 0x00, 0x00, 0x00 };
+                Array.Copy(cancelRequestBytes, 0, cancelPacket, 5, cancelRequestBytes.Length);
+                _device.Open();
+                _device.Write(cancelPacket);
+                _device.Read(null);
+                _device.Close();
+            }
+            catch
+            {
+                _device.Close();
+                throw;
+            }
         }
     }
 
