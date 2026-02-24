@@ -22,7 +22,7 @@ namespace CtapDotNet.Transports
     {
         public DeviceInfo DeviceInfo;
         public object Device;
-        public abstract EventHandler<EventArgs> UserActionRequiredEventHandler { get; set; }
+        public abstract EventHandler<UserActionRequiredEventArgs> UserActionRequiredEventHandler { get; set; }
 
         public abstract void Dispose();
 

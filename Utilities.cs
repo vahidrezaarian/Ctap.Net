@@ -73,6 +73,16 @@ namespace CtapDotNet
         Reset = 0x07,
     }
 
+    public class UserActionRequiredEventArgs : EventArgs
+    {
+        public UserActionRequiredEventArgs() { }
+
+        public void Cancel()
+        {
+            throw new OperationCanceledException();
+        }
+    }
+
     public class ProcessAbortedException : Exception
     {
         public ProcessAbortedException(string message)

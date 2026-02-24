@@ -15,9 +15,9 @@ namespace CtapDotNet.Transports.Usb
     {
         private readonly byte[] _channelId;
         private readonly UsbFidoHidDevice _device;
-        private EventHandler<EventArgs> _userActionRequiredEventHandler;
+        private EventHandler<UserActionRequiredEventArgs> _userActionRequiredEventHandler;
 
-        public override EventHandler<EventArgs> UserActionRequiredEventHandler
+        public override EventHandler<UserActionRequiredEventArgs> UserActionRequiredEventHandler
         {
             get
             {
@@ -243,7 +243,7 @@ namespace CtapDotNet.Transports.Usb
             }
         }
 
-        public (byte[] Data, int Length) Read(EventHandler<EventArgs> userActionRequiredEventHandler, bool recursive = false)
+        public (byte[] Data, int Length) Read(EventHandler<UserActionRequiredEventArgs> userActionRequiredEventHandler, bool recursive = false)
         {
             try
             {
@@ -275,7 +275,7 @@ namespace CtapDotNet.Transports.Usb
                             if (WaitingForUserAction && !userActionRequiredEventInvoked)
                             {
                                 userActionRequiredEventInvoked = true;
-                                userActionRequiredEventHandler?.Invoke(this, new EventArgs());
+                                userActionRequiredEventHandler?.Invoke(this, new UserActionRequiredEventArgs());
                             }
                         }
                         else

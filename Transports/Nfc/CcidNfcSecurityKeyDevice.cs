@@ -16,9 +16,9 @@ namespace CtapDotNet.Transports.Nfc
     public class CcidNfcSecurityKeyDevice : FidoSecurityKeyDevice
     {
         private readonly CcidSecurityKeyReaderDevice _readerDevice;
-        private EventHandler<EventArgs> _userActionRequiredEventHandler;
+        private EventHandler<UserActionRequiredEventArgs> _userActionRequiredEventHandler;
 
-        public override EventHandler<EventArgs> UserActionRequiredEventHandler
+        public override EventHandler<UserActionRequiredEventArgs> UserActionRequiredEventHandler
         {
             get
             {
