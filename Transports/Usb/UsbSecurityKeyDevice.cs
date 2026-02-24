@@ -426,22 +426,11 @@ namespace CtapDotNet.Transports.Usb
             get
             {
                 var devices = DeviceList.Local.GetHidDevices();
-                foreach (var dev in devices)
+                foreach (var device in devices)
                 {
-                    var rreportDescriptorItems = dev.GetReportDescriptor().DeviceItems;
-                    foreach (var item in rreportDescriptorItems)
+                    if (device.IsFidoDevice())
                     {
-                        foreach (var usage in item.Usages.GetAllValues())
-                        {
-                            if (usage == 4056940545)
-                            {
-                                if (dev.TryOpen(out HidStream tmpDeviceStream))
-                                {
-                                    tmpDeviceStream?.Close();
-                                    yield return dev;
-                                }
-                            }
-                        }
+                        yield return device;
                     }
                 }
             }

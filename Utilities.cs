@@ -4,6 +4,7 @@
 // This file is part of Ctap.Net and is licensed under the MIT license.
 // See LICENSE file in the project root for full license information.
 
+using HidSharp;
 using PeterO.Cbor;
 using System;
 using System.IO;
@@ -156,6 +157,23 @@ namespace CtapDotNet
                 Q = point,
                 Curve = ECCurve.NamedCurves.nistP256
             };
+        }
+
+        public static bool IsFidoDevice(this HidDevice device)
+        {
+            try
+            {
+                var reportDescriptorItems = device.GetReportDescriptor().DeviceItems;
+                foreach (var item in reportDescriptorItems)
+                {
+                    foreach (var usage in item.Usages.GetAllValues())
+                    {
+                        return usage == 4056940545;
+                    }
+                }
+            }
+            catch { }
+            return false;
         }
     }
 
