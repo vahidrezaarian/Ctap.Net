@@ -52,17 +52,29 @@ namespace CtapDotNet.Transports.Usb
 
         public override byte[] Send(byte[] data)
         {
-            var requestPacket = new byte[data.Length + 8];
-            Array.Copy(_channelId, 0, requestPacket, 1, 4);
-            requestPacket[5] = 0x90;
-            requestPacket[6] = (byte)(data.Length >> 8);
-            requestPacket[7] = (byte)(data.Length & 0xff);
-            Array.Copy(data, 0, requestPacket, 8, data.Length);
-            _device.Write(requestPacket);
-            var (Data, Length) = _device.Read(_userActionRequiredEventHandler);
-            byte[] response = new byte[Length];
-            Array.Copy(Data, 0, response, 0, Length);
-            return response;
+            try
+            {
+                var requestPacket = new byte[data.Length + 8];
+                Array.Copy(_channelId, 0, requestPacket, 1, 4);
+                requestPacket[5] = 0x90;
+                requestPacket[6] = (byte)(data.Length >> 8);
+                requestPacket[7] = (byte)(data.Length & 0xff);
+                Array.Copy(data, 0, requestPacket, 8, data.Length);
+                _device.Write(requestPacket);
+                var (Data, Length) = _device.Read(_userActionRequiredEventHandler);
+                byte[] response = new byte[Length];
+                Array.Copy(Data, 0, response, 0, Length);
+                return response;
+            }
+            catch (OperationCanceledException ex)
+            {
+                try
+                {
+                    Cancel();
+                }
+                catch { }
+                throw new OperationCanceledException(ex.Message);
+            }
         }
 
         private byte[] GetChannelId()
@@ -84,6 +96,22 @@ namespace CtapDotNet.Transports.Usb
             var channelId = new byte[4];
             Array.Copy(initResponse.Data, 8, channelId, 0, 4);
             return channelId;
+        }
+
+        private void Cancel()
+        {
+            // We need to send the cancel only if we are receiving keepalive from the security key
+            if (_channelId is null)
+            {
+                return;
+            }
+
+            var cancelPacket = new byte[9];
+            Array.Copy(_channelId, 0, cancelPacket, 1, 4);
+            byte[] cancelRequestBytes = { 0x91, 0x00, 0x00, 0x00 };
+            Array.Copy(cancelRequestBytes, 0, cancelPacket, 5, cancelRequestBytes.Length);
+            _device.Write(cancelPacket);
+            _device.Read(null);
         }
     }
 
@@ -258,6 +286,10 @@ namespace CtapDotNet.Transports.Usb
                     }
                     while (true);
                 }
+                catch (OperationCanceledException ex)
+                {
+                    throw new OperationCanceledException(ex.Message);
+                }
                 catch (ProcessAbortedException ex)
                 {
                     throw new ProcessAbortedException(ex.Message);
@@ -305,6 +337,10 @@ namespace CtapDotNet.Transports.Usb
             catch (ProcessAbortedException ex)
             {
                 throw new ProcessAbortedException(ex.Message);
+            }
+            catch (OperationCanceledException ex)
+            {
+                throw new OperationCanceledException(ex.Message);
             }
             catch (Exception ex)
             {
