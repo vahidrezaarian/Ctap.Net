@@ -5,6 +5,7 @@
 // See LICENSE file in the project root for full license information.
 
 using CtapDotNet.Transports;
+using CtapDotNet.Transports.Usb;
 using PeterO.Cbor;
 using System;
 using System.Collections.Generic;
@@ -216,6 +217,18 @@ namespace CtapDotNet
         {
             var response = _device.Send(CreateCborPacket(CtapCborSubCommands.Reset));
             CheckResponse(CtapCborSubCommands.Reset, response);
+        }
+
+        /// <summary>
+        /// Sends CTAP Cancel to the authentiactor to make it stop its operations.
+        /// </summary>
+        /// <remarks>This is only applied to USB FIDO security keys.</remarks>
+        public void Cancel()
+        {
+            if (_device is UsbSecurityKeyDevice usbDevice)
+            {
+                usbDevice.Cancel();
+            }
         }
 
         private static byte[] ExtractDataFromResponse(byte[] response)

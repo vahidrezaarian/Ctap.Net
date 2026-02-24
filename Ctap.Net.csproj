@@ -7,7 +7,7 @@
     
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Ctap.Net</PackageId>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
     <Authors>Vahidreza Arian</Authors>
     <Description>CTAP (Client to Authenticator Protocol) library for C# - supports USB/NFC FIDO security keys</Description>
     <PackageTags>fido;ctap;webauthn;securitykey;passkey;passkeys</PackageTags>
@@ -16,7 +16,7 @@
     <PackageIcon></PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/vahidrezaarian/Ctap.Net</RepositoryUrl>
-    <PackageReleaseNotes>Bug fixes. Implemented operation canceled exception handling.</PackageReleaseNotes>
+    <PackageReleaseNotes>Bug fixes in USB transport. Added Cancel method to the Ctap class.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
   </PropertyGroup>

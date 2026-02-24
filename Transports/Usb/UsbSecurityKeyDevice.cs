@@ -84,6 +84,32 @@ namespace CtapDotNet.Transports.Usb
             }
         }
 
+        public void Cancel()
+        {
+            try
+            {
+                // We need to send the cancel only if we are receiving keepalive from the security key
+                if (_channelId is null)
+                {
+                    return;
+                }
+
+                var cancelPacket = new byte[9];
+                Array.Copy(_channelId, 0, cancelPacket, 1, 4);
+                byte[] cancelRequestBytes = { 0x91, 0x00, 0x00, 0x00 };
+                Array.Copy(cancelRequestBytes, 0, cancelPacket, 5, cancelRequestBytes.Length);
+                _device.Open();
+                _device.Write(cancelPacket);
+                _device.Read(null);
+                _device.Close();
+            }
+            catch
+            {
+                _device.Close();
+                throw;
+            }
+        }
+
         private byte[] GetChannelId()
         {
             try
@@ -107,32 +133,6 @@ namespace CtapDotNet.Transports.Usb
                 var channelId = new byte[4];
                 Array.Copy(initResponse.Data, 8, channelId, 0, 4);
                 return channelId;
-            }
-            catch
-            {
-                _device.Close();
-                throw;
-            }
-        }
-
-        private void Cancel()
-        {
-            try
-            {
-                // We need to send the cancel only if we are receiving keepalive from the security key
-                if (_channelId is null)
-                {
-                    return;
-                }
-
-                var cancelPacket = new byte[9];
-                Array.Copy(_channelId, 0, cancelPacket, 1, 4);
-                byte[] cancelRequestBytes = { 0x91, 0x00, 0x00, 0x00 };
-                Array.Copy(cancelRequestBytes, 0, cancelPacket, 5, cancelRequestBytes.Length);
-                _device.Open();
-                _device.Write(cancelPacket);
-                _device.Read(null);
-                _device.Close();
             }
             catch
             {
