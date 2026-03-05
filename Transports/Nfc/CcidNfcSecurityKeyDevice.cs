@@ -9,7 +9,7 @@ using LibUsbDotNet.Main;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace CtapDotNet.Transports.Nfc
 {
@@ -31,14 +31,25 @@ namespace CtapDotNet.Transports.Nfc
             }
         }
 
-        public CcidNfcSecurityKeyDevice(UsbRegistry device)
+        public override DeviceInfo DeviceInfo
         {
-            _readerDevice = new CcidSecurityKeyReaderDevice(device);
+            get
+            {
+                return new DeviceInfo(_readerDevice.CardId, _readerDevice.DeviceInfoString, _readerDevice.DevicePath, Transports.NFC, _readerDevice.IsCardOnReader());
+            }
         }
 
-        public override void Dispose()
+        public override void WaitForRemoval()
         {
-            _readerDevice.Dispose();
+            while (_readerDevice.IsCardOnReader())
+            {
+                Task.Delay(500).Wait();
+            }
+        }
+
+        internal CcidNfcSecurityKeyDevice(CcidSecurityKeyReaderDevice readerDevice)
+        {
+            _readerDevice = readerDevice;
         }
 
         public override byte[] Send(byte[] data)
@@ -117,7 +128,7 @@ namespace CtapDotNet.Transports.Nfc
         }
     }
 
-    internal class CcidSecurityKeyReaderDevice : IDisposable
+    internal class CcidSecurityKeyReaderDevice
     {
         private enum PcToReaderCommand
         {
@@ -188,7 +199,6 @@ namespace CtapDotNet.Transports.Nfc
         private UsbDevice _usbDevice;
         private readonly int _inEndpoint;
         private readonly int _outEndpoint;
-        private readonly CancellationTokenSource _cancellationToken;
         private byte _ccidCommandSequence;
         private readonly object _ccidSequenceLock = new object();
 
@@ -200,6 +210,7 @@ namespace CtapDotNet.Transports.Nfc
         private const byte InsGetNext = 0x11;       // CTAP GET NEXT RESPONSE
 
         public readonly string DeviceInfoString;
+        public readonly string CardId;
 
         public bool IsConnected
         {
@@ -234,22 +245,8 @@ namespace CtapDotNet.Transports.Nfc
             _inEndpoint = _usbDevice.GetInEndpointId(interfaceIndex);
             _outEndpoint = _usbDevice.GetOutEndpointId(interfaceIndex);
             DeviceInfoString = $"{_usbDevice.Info.ProductString} - (Vendor ID: 0x{_usbDevice.Info.Descriptor.VendorID:X}, Product ID:0x{_usbDevice.Info.Descriptor.ProductID:X})";
-            _cancellationToken = new CancellationTokenSource();
-        }
-
-        ~CcidSecurityKeyReaderDevice()
-        {
-            Dispose();
-        }
-
-        public void Dispose()
-        {
-            if (_usbDevice != null && _usbDevice.IsOpen)
-            {
-                _usbDevice?.Close();
-                _usbDevice = null;
-            }
-            _cancellationToken?.Cancel();
+            _usbDevice.Close();
+            CardId = ReadCardId();
         }
 
         public byte[] Send(byte[] data)
@@ -265,7 +262,30 @@ namespace CtapDotNet.Transports.Nfc
             return response;
         }
 
-        private byte[] CreateCcidDataPacket(PcToReaderCommand command, byte slotNumber, byte sequence, byte[] messageSpecificData = null, byte[] additionalData = null)
+        private string ReadCardId()
+        {
+            byte[] cardUidReadApdu = { 0xFF, 0xCA, 0x00, 0x00, 0x00 };
+            var resposne = SendApdu(cardUidReadApdu);
+            byte[] cardUid = new byte[resposne.Length - 2];
+            Array.Copy(resposne, 0, cardUid, 0, cardUid.Length);
+            return cardUid.ToHexString();
+        }
+
+        public bool IsCardOnReader()
+        {
+            if (!IsConnected)
+            {
+                return false;
+            }
+
+            try
+            {
+                return ReadCardId() == CardId;
+            }
+            catch { return false; }
+        }
+
+        private static byte[] CreateCcidDataPacket(PcToReaderCommand command, byte slotNumber, byte sequence, byte[] messageSpecificData = null, byte[] additionalData = null)
         {
             byte[] data;
 
@@ -295,7 +315,7 @@ namespace CtapDotNet.Transports.Nfc
             return data;
         }
 
-        private byte[] ReadNextCcidMessage(UsbEndpointReader reader, int timeoutMs)
+        private static byte[] ReadNextCcidMessage(UsbEndpointReader reader, int timeoutMs)
         {
             var first = new byte[64];
             var statusCode = reader.Read(first, timeoutMs, out int len);
@@ -342,84 +362,85 @@ namespace CtapDotNet.Transports.Nfc
 
         private byte[] SendCcidCommand(byte[] command)
         {
-            if (command == null || command.Length < 10)
-                throw new ArgumentException("CCID command must be at least 10 bytes.", nameof(command));
-
-            if (_usbDevice == null || !_usbDevice.IsOpen)
+            try
             {
-                if (!_deviceUsbRegistry.Open(out _usbDevice))
-                    throw new Exception("Failed to open the USB device!");
-            }
+                if (command == null || command.Length < 10)
+                    throw new ArgumentException("CCID command must be at least 10 bytes.", nameof(command));
 
-            var writer = _usbDevice.OpenEndpointWriter((LibUsbDotNet.Main.WriteEndpointID)_outEndpoint);
-            var ec = writer.Write(command, 5000, out int written);
-            if (ec != ErrorCode.Success)
-                throw new Exception($"USB writing failed with status code {(int)ec}");
-
-            var reader = _usbDevice.OpenEndpointReader((ReadEndpointID)_inEndpoint);
-
-            byte expectedSeq = command[6];
-            var expectedReaderResponseType = ReaderToPcResponse.DataBlock;
-            if (command[0] == (byte)PcToReaderCommand.GetSlotStatus)
-            {
-                expectedReaderResponseType = ReaderToPcResponse.SlotStatus;
-            }
-            else if (command[0] == (byte)PcToReaderCommand.Escape)
-            {
-                expectedReaderResponseType = ReaderToPcResponse.Escape;
-            }
-
-            byte[] firstReadBuffer = null;
-
-            // Phase 1: find first response matching (type, seq)
-            for (int i = 0; i < 12; i++)
-            {
-                firstReadBuffer = ReadNextCcidMessage(reader, 5000);
-
-                if (firstReadBuffer[0] == (byte)expectedReaderResponseType && firstReadBuffer[6] == expectedSeq)
-                    break;
-
-                firstReadBuffer = null;
-            }
-
-            if (firstReadBuffer == null)
-                throw new Exception($"Did not receive expected CCID response (type=0x{(byte)expectedReaderResponseType:X2}, seq={expectedSeq}).");
-
-            // Phase 2: handle Time Extension (cmdStatus==2)
-            for (int ext = 0; ext < 200; ext++)
-            {
-                if (firstReadBuffer.Length >= 10)
+                if (_usbDevice == null || !_usbDevice.IsOpen)
                 {
-                    byte bStatus = firstReadBuffer[7];
-
-                    // Inline decode: cmdStatus = bits 6..7
-                    byte cmdStatus = (byte)((bStatus >> 6) & 0x03);
-
-                    if (cmdStatus != 2)
-                        return firstReadBuffer;
+                    if (!_deviceUsbRegistry.Open(out _usbDevice))
+                        throw new Exception("Failed to open the USB device!");
                 }
 
-                var secondReadBuffer = ReadNextCcidMessage(reader, 5000);
-                if (secondReadBuffer[0] == (byte)expectedReaderResponseType && secondReadBuffer[6] == expectedSeq)
-                {
-                    firstReadBuffer = secondReadBuffer;
-                    continue;
-                }
-            }
+                var writer = _usbDevice.OpenEndpointWriter((LibUsbDotNet.Main.WriteEndpointID)_outEndpoint);
+                var ec = writer.Write(command, 5000, out int written);
+                if (ec != ErrorCode.Success)
+                    throw new Exception($"USB writing failed with status code {(int)ec}");
 
-            throw new Exception("CCID command did not complete (time extension loop exceeded).");
+                var reader = _usbDevice.OpenEndpointReader((ReadEndpointID)_inEndpoint);
+
+                byte expectedSeq = command[6];
+                var expectedReaderResponseType = ReaderToPcResponse.DataBlock;
+                if (command[0] == (byte)PcToReaderCommand.GetSlotStatus)
+                {
+                    expectedReaderResponseType = ReaderToPcResponse.SlotStatus;
+                }
+                else if (command[0] == (byte)PcToReaderCommand.Escape)
+                {
+                    expectedReaderResponseType = ReaderToPcResponse.Escape;
+                }
+
+                byte[] firstReadBuffer = null;
+
+                // Phase 1: find first response matching (type, seq)
+                for (int i = 0; i < 12; i++)
+                {
+                    firstReadBuffer = ReadNextCcidMessage(reader, 5000);
+
+                    if (firstReadBuffer[0] == (byte)expectedReaderResponseType && firstReadBuffer[6] == expectedSeq)
+                        break;
+
+                    firstReadBuffer = null;
+                }
+
+                if (firstReadBuffer == null)
+                    throw new Exception($"Did not receive expected CCID response (type=0x{(byte)expectedReaderResponseType:X2}, seq={expectedSeq}).");
+
+                // Phase 2: handle Time Extension (cmdStatus==2)
+                for (int ext = 0; ext < 200; ext++)
+                {
+                    if (firstReadBuffer.Length >= 10)
+                    {
+                        byte bStatus = firstReadBuffer[7];
+
+                        // Inline decode: cmdStatus = bits 6..7
+                        byte cmdStatus = (byte)((bStatus >> 6) & 0x03);
+
+                        if (cmdStatus != 2)
+                            return firstReadBuffer;
+                    }
+
+                    var secondReadBuffer = ReadNextCcidMessage(reader, 5000);
+                    if (secondReadBuffer[0] == (byte)expectedReaderResponseType && secondReadBuffer[6] == expectedSeq)
+                    {
+                        firstReadBuffer = secondReadBuffer;
+                        continue;
+                    }
+                }
+
+                throw new Exception("CCID command did not complete (time extension loop exceeded).");
+            }
+            finally
+            {
+                _usbDevice.Close();
+            }
         }
 
         private byte[] SendApdu(byte[] apdu)
         {
             if (apdu == null || apdu.Length == 0)
                 throw new ArgumentException("APDU cannot be null or empty", nameof(apdu));
-
-            if (_usbDevice == null || !_usbDevice.IsOpen)
-            {
-                if (!_deviceUsbRegistry.Open(out _usbDevice))
-                    throw new Exception("Failed to open the USB device!");
-            }
 
             byte seq;
             lock (_ccidSequenceLock)
@@ -635,14 +656,14 @@ namespace CtapDotNet.Transports.Nfc
             return apdu;
         }
 
-        public static IEnumerable<UsbRegistry> AllDevices
+        public static IEnumerable<CcidSecurityKeyReaderDevice> AllDevices
         {
             get
             {
                 UsbDevice usbDevice = null;
+                CcidSecurityKeyReaderDevice ccidDevice = null;
                 foreach (UsbRegistry device in UsbDevice.AllDevices)
                 {
-                    bool isFido = false;
                     try
                     {
                         if (device.Open(out usbDevice))
@@ -650,9 +671,10 @@ namespace CtapDotNet.Transports.Nfc
                             if (usbDevice.IsCcidDevice())
                             {
                                 usbDevice.Close();
-                                using (var ccidDevice = new CcidSecurityKeyReaderDevice(device))
+                                ccidDevice = new CcidSecurityKeyReaderDevice(device);
+                                if (!ccidDevice.TrySelectingFidoApplet())
                                 {
-                                    isFido = ccidDevice.TrySelectingFidoApplet();
+                                    ccidDevice = null;
                                 }
                             }
                             else
@@ -669,9 +691,9 @@ namespace CtapDotNet.Transports.Nfc
                         }
                         catch (Exception) { }
                     }
-                    if (isFido)
+                    if (ccidDevice != null)
                     {
-                        yield return device;
+                        yield return ccidDevice;
                     }
                 }
             }

@@ -18,16 +18,14 @@ namespace CtapDotNet.Transports
         BLE
     }
 
-    public abstract class FidoSecurityKeyDevice: IDisposable
+    public abstract class FidoSecurityKeyDevice
     {
-        public DeviceInfo DeviceInfo;
-        public object Device;
         public abstract EventHandler<UserActionRequiredEventArgs> UserActionRequiredEventHandler { get; set; }
-
-        public abstract void Dispose();
+        public abstract DeviceInfo DeviceInfo { get; }
 
         public abstract byte[] Send(byte[] data);
-	}
+        public abstract void WaitForRemoval();
+    }
 
     public static class FidoSecurityKeyDevices
     {
@@ -37,33 +35,37 @@ namespace CtapDotNet.Transports
             {
                 foreach (var device in UsbFidoHidDevice.AllDevices)
                 {
-                    yield return new UsbSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device.GetProductName(), device.DevicePath, Transports.USB), Device = device };
+                    yield return new UsbSecurityKeyDevice(device);
                 }
 
                 foreach (var device in PcscSecurityKeyReaderDevice.AllDevices)
                 {
-                    yield return new PcscNfcSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device, device, Transports.NFC), Device = device };   
+                    yield return new PcscNfcSecurityKeyDevice(device);
                 }
 
                 foreach (var device in CcidSecurityKeyReaderDevice.AllDevices)
                 {
-                    yield return new CcidNfcSecurityKeyDevice(device) { DeviceInfo = new DeviceInfo(device.Name, device.DevicePath, Transports.NFC), Device = device };
+                    yield return new CcidNfcSecurityKeyDevice(device);
                 }
-			}
+            }
         }
     }
 
     public class DeviceInfo
     {
+        public readonly string SerialNumber;
         public readonly string Name;
         public readonly string Path;
         public readonly Transports Transport;
+        public readonly bool IsPresent;
 
-        public DeviceInfo(string name, string path, Transports transport)
+        public DeviceInfo(string serialNumber, string name, string path, Transports transport, bool isPresent)
         {
+            SerialNumber = serialNumber;
             Name = name;
             Path = path;
             Transport = transport;
+            IsPresent = isPresent;
         }
     }
 }

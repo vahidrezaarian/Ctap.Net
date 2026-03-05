@@ -8,10 +8,11 @@ using HidSharp;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace CtapDotNet.Transports.Usb
 {
-    public class UsbSecurityKeyDevice: FidoSecurityKeyDevice
+    public class UsbSecurityKeyDevice : FidoSecurityKeyDevice
     {
         private readonly byte[] _channelId;
         private readonly UsbFidoHidDevice _device;
@@ -30,6 +31,30 @@ namespace CtapDotNet.Transports.Usb
             }
         }
 
+        public override DeviceInfo DeviceInfo
+        {
+            get
+            {
+                string serialNumber = null;
+                try
+                {
+                    serialNumber = _device.Device.GetSerialNumber().ToLower().Contains("accesskey") ? "IDmelon Accesskey" : _device.Device.GetSerialNumber().ToLower().Contains("pairingtool") ? "IDmelon Pairing Tool" : _device.Device.GetSerialNumber();
+                }
+                catch
+                {
+                    try
+                    {
+                        serialNumber = _device.Device.GetProductName().ToLower().Contains("accesskey") ? "IDmelon Accesskey" : _device.Device.GetProductName().ToLower().Contains("pairingtool") ? "IDmelon Pairing Tool" : _device.Device.GetProductName();
+                    }
+                    catch { }
+                }
+
+                return new DeviceInfo(serialNumber,
+                    _device.Device.GetProductName().ToLower().Contains("accesskey") ? "IDmelon Accesskey" : _device.Device.GetProductName().ToLower().Contains("pairingtool") ? "IDmelon Pairing Tool" : _device.Device.GetProductName(),
+                    _device.Device.DevicePath, Transports.USB, _device.IsConnected);
+            }
+        }
+
         public bool WaitingForUserAction
         {
             get
@@ -42,11 +67,6 @@ namespace CtapDotNet.Transports.Usb
         {
             _device = new UsbFidoHidDevice(device);
             _channelId = GetChannelId();
-        }
-
-        public override void Dispose()
-        {
-            
         }
 
         public override byte[] Send(byte[] data)
@@ -81,6 +101,14 @@ namespace CtapDotNet.Transports.Usb
             {
                 _device.Close();
                 throw;
+            }
+        }
+
+        public override void WaitForRemoval()
+        {
+            while (_device.IsConnected)
+            {
+                Task.Delay(500).Wait();
             }
         }
 
@@ -144,25 +172,40 @@ namespace CtapDotNet.Transports.Usb
 
     internal class UsbFidoHidDevice
     {
-        readonly HidDevice _device;
+        public readonly HidDevice Device;
         HidStream _stream;
 
         public bool WaitingForUserAction { get; private set; }
 
         public UsbFidoHidDevice(HidDevice device)
         {
-            _device = device;
+            Device = device;
+        }
+
+        public bool IsConnected
+        {
+            get
+            {
+                foreach (var dev in AllDevices)
+                {
+                    if (dev.DevicePath == Device.DevicePath)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
         }
 
         public void Open(bool recursiveCall = false)
         {
             try
             {
-                _stream = _device.Open();
+                _stream = Device.Open();
             }
             catch (Exception e)
             {
-                if (!recursiveCall && IsDeviceStillConnected(_device))
+                if (!recursiveCall && IsConnected)
                 {
                     Close();
                     Thread.Sleep(1000);
@@ -176,7 +219,7 @@ namespace CtapDotNet.Transports.Usb
                 }
                 else
                 {
-                    if (IsDeviceStillConnected(_device))
+                    if (IsConnected)
                     {
                         throw new Exception($"Failed to open the HID device. Error: {e.Message}");
                     }
@@ -207,20 +250,19 @@ namespace CtapDotNet.Transports.Usb
         {
             try
             {
-                if (_device == null)
+                if (Device == null)
                 {
                     throw new InvalidOperationException("Device not initialized.");
                 }
 
                 if (_stream == null || !_stream.CanRead)
                 {
-                    _stream = _device.Open();
+                    _stream = Device.Open();
                 }
-
-                var outputReportBuffer = new byte[65];
 
                 if (data.Length <= 65)
                 {
+                    var outputReportBuffer = new byte[65];
                     Array.Copy(data, outputReportBuffer, data.Length);
                     _stream.Write(outputReportBuffer, 0, outputReportBuffer.Length);
                 }
@@ -259,8 +301,7 @@ namespace CtapDotNet.Transports.Usb
 
                     foreach (var packet in listOfPacketsToWrite)
                     {
-                        Array.Copy(packet, outputReportBuffer, packet.Length);
-                        _stream.Write(outputReportBuffer, 0, outputReportBuffer.Length);
+                        _stream.Write(packet);
                     }
                 }
             }
@@ -274,14 +315,14 @@ namespace CtapDotNet.Transports.Usb
         {
             try
             {
-                if (_device == null)
+                if (Device == null)
                 {
                     throw new InvalidOperationException("Device not initialized.");
                 }
 
                 if (_stream == null || !_stream.CanRead)
                 {
-                    _stream = _device.Open();
+                    _stream = Device.Open();
                 }
 
                 byte[] result;
@@ -372,79 +413,6 @@ namespace CtapDotNet.Transports.Usb
             catch (Exception ex)
             {
                 throw new Exception($"Failed to read the HID device. Error: {ex.Message}");
-            }
-        }
-
-        public static bool IsDeviceStillConnected(HidDevice device)
-        {
-            try
-            {
-                foreach (var dev in AllDevices)
-                {
-                    if (dev.DevicePath == device.DevicePath)
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to check if HID device is still connected. Error: {ex.Message}");
-            }
-        }
-
-        public static bool IsDeviceStillConnected(string devicePath, out HidDevice device)
-        {
-            device = null;
-            foreach (var d in AllDevices)
-            {
-                if (d.DevicePath == devicePath)
-                {
-                    device = d;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public static bool IsDeviceStillConnected(string devicePath)
-        {
-            foreach (var d in AllDevices)
-            {
-                if (d.DevicePath == devicePath)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public static void WaitForDeviceToBeConnected(HidDevice device, CancellationToken cancellationToken)
-        {
-            try
-            {
-                while (true)
-                {
-                    foreach (var dev in AllDevices)
-                    {
-                        if (dev.DevicePath == device.DevicePath)
-                        {
-                            return;
-                        }
-                    }
-
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    Thread.Sleep(100);
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failure in waiting for device reconnection. Error: {ex.Message}");
             }
         }
 

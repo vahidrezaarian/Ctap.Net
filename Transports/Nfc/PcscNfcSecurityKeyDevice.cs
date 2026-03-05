@@ -9,7 +9,7 @@ using PCSC.Iso7816;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace CtapDotNet.Transports.Nfc
 {
@@ -31,84 +31,115 @@ namespace CtapDotNet.Transports.Nfc
             }
         }
 
-        public PcscNfcSecurityKeyDevice(string readerName)
+        public override DeviceInfo DeviceInfo
         {
-            _readerDevice = new PcscSecurityKeyReaderDevice(readerName);
+            get
+            {
+                return new DeviceInfo(_readerDevice.CardId, _readerDevice.ReaderName, _readerDevice.ReaderName, Transports.NFC, _readerDevice.IsCardOnReader());
+            }
         }
 
-        public override void Dispose()
+        internal PcscNfcSecurityKeyDevice(PcscSecurityKeyReaderDevice readerDevice)
         {
-            _readerDevice.Dispose();
+            _readerDevice = readerDevice;
         }
 
         public override byte[] Send(byte[] data)
         {
             return _readerDevice.Send(data);
         }
+
+        public override void WaitForRemoval()
+        {
+            while (_readerDevice.IsCardOnReader())
+            {
+                Task.Delay(500);
+            }
+        }
     }
 
-    internal class PcscSecurityKeyReaderDevice: IDisposable
+    internal class PcscSecurityKeyReaderDevice
     {
         private static readonly byte[] FidoAid = new byte[]
         {
             0xA0, 0x00, 0x00, 0x06, 0x47, 0x2F, 0x00, 0x01
         };
 
-        private readonly SCardContext _scardContext;
-        private readonly SCardReader _scardReader;
-        private readonly string _readerName;
+        public readonly string ReaderName;
+        public readonly string CardId;
 
         public PcscSecurityKeyReaderDevice(string readerName)
         {
-            _readerName = readerName;
-            _scardContext = new SCardContext();
-            _scardContext.Establish(SCardScope.System);
-            _scardReader = new SCardReader(_scardContext);
+            ReaderName = readerName;
+            CardId = ReadCardId();
         }
 
-        public void Dispose()
-        {
-            _scardContext?.Dispose();
-            _scardReader?.Dispose();
-        }
-
-        public static List<string> AllDevices
+        public static IEnumerable<PcscSecurityKeyReaderDevice> AllDevices
         {
             get
             {
-                var readersList = new List<string>();
+                PcscSecurityKeyReaderDevice readerDevice = null;
                 using (var context = new SCardContext())
                 {
                     context.Establish(SCardScope.System);
 
                     var readers = context.GetReaders();
-                    if (readers != null && readers.Length > 0)
+                    foreach (var readerName in readers)
                     {
-                        foreach (var readerName in readers)
+                        using (var reader = new SCardReader(context))
                         {
-                            using (var reader = new SCardReader(context))
+                            var rc = reader.Connect(readerName, SCardShareMode.Shared, SCardProtocol.Any);
+                            if (rc != SCardError.Success)
                             {
-                                var rc = reader.Connect(readerName, SCardShareMode.Shared, SCardProtocol.Any);
-                                if (rc != SCardError.Success)
-                                {
-                                    continue;
-                                }
+                                continue;
+                            }
 
-                                try
-                                {
-                                    TrySelectingFidoApplet(reader);
-                                    readersList.Add(readerName);
-                                }
-                                catch { }
-                                finally
-                                {
-                                    try { reader.Disconnect(SCardReaderDisposition.Leave); } catch { }
-                                }
+                            try
+                            {
+                                TrySelectingFidoApplet(reader);
+                                readerDevice = new PcscSecurityKeyReaderDevice(readerName);
+                            }
+                            catch
+                            {
+                                readerDevice = null;
+                            }
+                            finally
+                            {
+                                try { reader.Disconnect(SCardReaderDisposition.Leave); } catch { }
+                            }
+
+                            if (readerDevice != null)
+                            {
+                                yield return readerDevice;
                             }
                         }
                     }
                 }
-                return readersList;
+            }
+        }
+
+        public bool IsConnected
+        {
+            get
+            {
+                try
+                {
+                    using (var context = new SCardContext())
+                    {
+                        context.Establish(SCardScope.System);
+
+                        var readers = context.GetReaders();
+                        foreach (var readerName in readers)
+                        {
+                            if (readerName == ReaderName)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                catch { }
+                return false;
             }
         }
 
@@ -141,84 +172,92 @@ namespace CtapDotNet.Transports.Nfc
             }
         }
 
-        public static bool IsReaderStillConnected(string readerName)
-        {
-            try
-            {
-                var readers = AllDevices;
-                if (readers == null || readers.Count == 0) return false;
-                foreach (var r in readers)
-                {
-                    if (string.Equals(r, readerName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to check if NFC reader is still connected. Error: {ex.Message}");
-            }
-        }
-
-        public static void WaitForReaderToBeConnected(string readerName, CancellationToken cancellationToken, TimeSpan? timeout = null)
-        {
-            try
-            {
-                int counter = 0;
-                while (true)
-                {
-                    if (IsReaderStillConnected(readerName))
-                    {
-                        return;
-                    }
-
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
-
-                    counter++;
-                    if (timeout != null && counter >= timeout.Value.TotalMilliseconds/100)
-                    {
-                        throw new TimeoutException();
-                    }
-
-                    Thread.Sleep(100);
-                }
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failure in waiting for NFC reader connection. Error: {ex.Message}");
-            }
-        }
-
         public byte[] Send(byte[] packet)
         {
-            byte[] response;
+            using (var scardContext = new SCardContext())
+            {
+                scardContext.Establish(SCardScope.System);
+                using (var scardReader = new SCardReader(scardContext))
+                {
+                    byte[] response;
 
-            var statusCode = _scardReader.Connect(_readerName, SCardShareMode.Shared, SCardProtocol.T0 | SCardProtocol.T1);
-            if (statusCode != SCardError.Success)
-                throw new Exception($"Failed to connect to the card. Status code: {statusCode}");
+                    var statusCode = scardReader.Connect(ReaderName, SCardShareMode.Shared, SCardProtocol.T0 | SCardProtocol.T1);
+                    if (statusCode != SCardError.Success)
+                        throw new Exception($"Failed to connect to the card. Status code: {statusCode}");
+
+                    try
+                    {
+                        TrySelectingFidoApplet(scardReader);
+                        response = SendCtap(scardReader, packet);
+                    }
+                    finally
+                    {
+                        try { scardReader.Disconnect(SCardReaderDisposition.Leave); } catch { }
+                    }
+
+                    if (response == null || response.Length == 0)
+                        throw new Exception("Empty CTAP2 NFC response.");
+
+                    return response;
+                }
+            }
+        }
+
+        private string ReadCardId()
+        {
+            using (var scardContext = new SCardContext())
+            {
+                scardContext.Establish(SCardScope.System);
+                using (var scardReader = new SCardReader(scardContext))
+                {
+                    var statusCode = scardReader.Connect(ReaderName, SCardShareMode.Shared, SCardProtocol.T0 | SCardProtocol.T1);
+                    if (statusCode != SCardError.Success)
+                        throw new Exception($"Failed to connect to the card. Status code: {statusCode}");
+
+                    byte[] sendBuffer = { 0xFF, 0xCA, 0x00, 0x00, 0x00 };
+                    byte[] receiveBuffer = new byte[10];
+                    statusCode = scardReader.Transmit(sendBuffer, ref receiveBuffer);
+                    if (statusCode != SCardError.Success)
+                    {
+                        throw new Exception($"Failed to transmit APDU. Error code: {statusCode}");
+                    }
+
+                    return ExtractUid(receiveBuffer.ToHexString());
+                }
+            }
+        }
+
+        public bool IsCardOnReader()
+        {
+            if (!IsConnected)
+            {
+                return false;
+            }
 
             try
             {
-                TrySelectingFidoApplet(_scardReader);
-                response = SendCtap(packet);
+                return ReadCardId() == CardId;
             }
-            finally
-            {
-                try { _scardReader.Disconnect(SCardReaderDisposition.Leave); } catch { }
-            }
-
-            if (response == null || response.Length == 0)
-                throw new Exception("Empty CTAP2 NFC response.");
-
-            return response;
+            catch { return false; }
         }
 
-        private byte[] SendCtap(byte[] ctapMessage)
+
+        private static string ExtractUid(string rawUid)
+        {
+            int index = -1;
+            for (int i = rawUid.Length - 2; i >= 0; i -= 2)
+            {
+                if (rawUid.Substring(i, 2) == "90")
+                {
+                    index = i;
+                    break;
+                }
+            }
+
+            return rawUid.Substring(0, index);
+        }
+
+        private byte[] SendCtap(SCardReader scardReader, byte[] ctapMessage)
         {
             const int MaxShortLc = 251;
 
@@ -242,7 +281,7 @@ namespace CtapDotNet.Transports.Nfc
 
                 var apdu = BuildShortApdu(cla, ins, p1, p2, chunk, le: 0x00);
 
-                responseBytes = TransmitApdu(apdu);
+                responseBytes = TransmitApdu(scardReader, apdu);
 
                 if (responseBytes == null || responseBytes.Length < 2)
                     throw new Exception("Truncated APDU response during command chaining.");
@@ -284,7 +323,7 @@ namespace CtapDotNet.Transports.Nfc
                     {
                         // GET NEXT RESPONSE as SHORT APDU (no extended)
                         var getNext = BuildShortApdu(0x80, 0x11, 0x00, 0x00, null, le: 0x00);
-                        responseBytes = TransmitApdu(getNext);
+                        responseBytes = TransmitApdu(scardReader, getNext);
                         continue;
                     }
 
@@ -294,7 +333,7 @@ namespace CtapDotNet.Transports.Nfc
                         int le = (sw2 == 0x00) ? 256 : sw2;
                         // Standard ISO GET RESPONSE: CLA=00, INS=C0
                         byte[] isoGet = new byte[] { 0x00, 0xC0, 0x00, 0x00, (byte)(le & 0xFF) };
-                        responseBytes = TransmitApdu(isoGet);
+                        responseBytes = TransmitApdu(scardReader, isoGet);
                         continue;
                     }
 
@@ -341,12 +380,12 @@ namespace CtapDotNet.Transports.Nfc
             return apdu;
         }
 
-        private byte[] TransmitApdu(byte[] command)
+        private static byte[] TransmitApdu(SCardReader scardReader, byte[] command)
         {
-            IntPtr sendPci = SCardPCI.GetPci(_scardReader.ActiveProtocol);
+            IntPtr sendPci = SCardPCI.GetPci(scardReader.ActiveProtocol);
             byte[] receiveBuffer = new byte[8192];
             int receiveLength = receiveBuffer.Length;
-            var statusCode = _scardReader.Transmit(sendPci, command, command.Length, null, receiveBuffer, ref receiveLength);
+            var statusCode = scardReader.Transmit(sendPci, command, command.Length, null, receiveBuffer, ref receiveLength);
 
             if (statusCode != SCardError.Success)
             {

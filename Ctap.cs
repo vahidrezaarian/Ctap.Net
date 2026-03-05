@@ -20,18 +20,13 @@ namespace CtapDotNet
         }
     }
 
-    public class Ctap: IDisposable
+    public class Ctap
     {
         private readonly FidoSecurityKeyDevice _device;
 
         public Ctap(FidoSecurityKeyDevice device)
         {
             _device = device;
-        }
-
-        public void Dispose()
-        {
-            _device.Dispose();
         }
 
         public byte[] GetInfo()
@@ -259,9 +254,9 @@ namespace CtapDotNet
             if (response[0] != 0)
             {
                 var statusCode = (CtapStatusCode)response[0];
-                if (byte.TryParse(statusCode.ToString(), out byte _))
+                if (byte.TryParse(statusCode.ToString(), out byte parsedByte))
                 {
-                    throw new CtapException(statusCode, $"{subCommand} failed in {_device.DeviceInfo.Name}. Status code: {statusCode:X}");
+                    throw new CtapException(statusCode, $"{subCommand} failed in {_device.DeviceInfo.Name}. Status code: 0x{parsedByte:X}");
                 }
                 else
                 {
