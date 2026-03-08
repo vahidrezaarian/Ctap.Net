@@ -15,10 +15,10 @@ dotnet add package Ctap.Net
 
 Or in your .csproj:
 ```XML
-<PackageReference Include="Ctap.Net" Version="1.0.5" />
+<PackageReference Include="Ctap.Net" Version="1.1.1" />
 ```
 
-The latest version: https://www.nuget.org/packages/Ctap.Net/1.0.5
+The latest version: https://www.nuget.org/packages/Ctap.Net/1.1.1
 
 ## How to use
 You simply need to look for a FIDO security key device, choose one and create an object of Ctap class using the found device. Then send the CTAP packets to the selected device.
@@ -32,9 +32,7 @@ foreach (var device in FidoSecurityKeyDevices.AllDevices)
         // Call args.Cancel() in order to cancel the operation
     };
 
-    using (var ctap = new Ctap(device)) // Make sure the ctap object is disposed when finished
-    {
-        var securityKeyInfo = ctap.GetInfo().ToCborObject();
-    }
+    var ctap = new Ctap(device)
+    var securityKeyInfo = ctap.GetInfo().ToCborObject();
 }
 ```
